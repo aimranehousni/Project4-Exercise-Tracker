@@ -7,27 +7,34 @@ const bodyParser = require('body-parser');
 
 const User = require('./models/User');
 
-// Middlewars
 const app = express();
-app.use(cors())
-app.use(express.static('public'))
+
+// Middlewares
+app.use(cors());
+app.use(express.static('public'));
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+// Check if MONGO_URI is present
+const mongoURI = process.env.MONGO_URI;
+if (!mongoURI) {
+  console.error("❌ MONGO_URI is not defined in your .env file.");
+  process.exit(1); // stop the app if no URI
+}
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(mongoURI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch(err => console.error("❌ MongoDB connection error:", err.message));
 
-
 // UI Render
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/views/index.html')
+  res.sendFile(__dirname + '/views/index.html');
 });
-
-
 
 // Create a new user
 app.post('/api/users', async (req, res) => {
@@ -36,7 +43,7 @@ app.post('/api/users', async (req, res) => {
     await user.save();
     res.status(201).json({ username: user.username, _id: user._id });
   } catch (err) {
-    res.status(500).json({error : err.message});
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -46,40 +53,42 @@ app.get('/api/users', async (req, res) => {
     const users = await User.find({}, 'username _id');
     res.status(200).json(users);
   } catch (err) {
-    res.status(500).json({error : err.message});
+    res.status(500).json({ error: err.message });
   }
 });
-
 
 // Add an exercise
 app.post('/api/users/:_id/exercises', async (req, res) => {
   try {
     const { description, duration, date } = req.body;
     const user = await User.findById(req.params._id);
-    if (!user) return res.status(404).json({err : "User not found"});
-    
+    if (!user) return res.status(404).json({ error: "User not found" });
+
     const exerciseDate = date ? new Date(date) : new Date();
-    const exercise = { description, duration: Number(duration), date: exerciseDate };
-    
+    const exercise = {
+      description,
+      duration: Number(duration),
+      date: exerciseDate
+    };
+
     user.log.push(exercise);
     await user.save();
-    
+
     res.status(201).json({
       username: user.username,
       description,
       duration: Number(duration),
       date: exerciseDate.toDateString(),
       _id: user._id
-    });    
+    });
   } catch (err) {
-    res.status(500).json({error : err.message});
+    res.status(500).json({ error: err.message });
   }
 });
 
-
-// Get user logs (with optional query params)
+// Get user logs
 app.get('/api/users/:_id/logs', async (req, res) => {
-  try{ 
+  try {
     const { from, to, limit } = req.query;
     const user = await User.findById(req.params._id);
     if (!user) return res.status(404).send("User not found");
@@ -111,11 +120,11 @@ app.get('/api/users/:_id/logs', async (req, res) => {
       log: logs
     });
   } catch (err) {
-    res.status(500).json({error : err.message});
+    res.status(500).json({ error: err.message });
   }
 });
 
-
+// Start the server
 const listener = app.listen(process.env.PORT || 3000, () => {
-  console.log('Your app is listening on port ' + listener.address().port)
-})
+  console.log('✅ Your app is listening on port ' + listener.address().port);
+});
